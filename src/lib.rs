@@ -10,12 +10,13 @@ use actix_web::client::Client;
 use async_std::fs::File;
 use async_std::prelude::*;
 use http::uri::Uri;
+use anyhow::Result;
 
 // Result<OsString, (SendRequestError|std::core::convert::Infallible|actix_http::error::PayloadError)
 #[actix_rt::main]
-async fn download(uri: &'static str, target_dir: &'static str) -> Result<OsString, ()> {
+async fn download(uri: &'static str, target_dir: &'static str) -> Result<OsString> {
     let client: Client = Client::default();
-    let uri: Uri = Uri::from_str(uri).unwrap();
+    let uri: Uri = Uri::from_str(uri)?;
 
     // Create request builder and send request
     let response = client
@@ -40,12 +41,11 @@ async fn download(uri: &'static str, target_dir: &'static str) -> Result<OsStrin
         None => get_host(),
     };
 
-    let output_pathbuf: PathBuf = PathBuf::from_str(target_dir).unwrap().join(path);
+    let output_pathbuf: PathBuf = PathBuf::from_str(target_dir)?.join(path);
     let output_file: &OsStr = output_pathbuf.as_os_str();
-    let mut file: File = File::create(output_file).await.unwrap();
+    let mut file: File = File::create(output_file).await?;
     file.write_all(&response.unwrap().body().await.unwrap())
-        .await
-        .unwrap();
+        .await?;
     // file.write_all(b"Hello, world!").await.unwrap();
     return Ok(output_file.to_owned());
 }
