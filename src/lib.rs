@@ -1,71 +1,90 @@
+extern crate async_std;
 #[macro_use]
 extern crate lazy_static;
 
-use std::ffi::{OsStr, OsString};
-use std::path::PathBuf;
-use std::str::FromStr;
-
-use actix_rt;
-use actix_web::client::Client;
-use async_std::fs::File;
-use async_std::prelude::*;
-use http::uri::Uri;
-use anyhow::Result;
-
 // Result<OsString, (SendRequestError|std::core::convert::Infallible|actix_http::error::PayloadError)
-#[actix_rt::main]
-async fn download(uri: &'static str, target_dir: &'static str) -> Result<OsString> {
-    let client: Client = Client::default();
-    let uri: Uri = Uri::from_str(uri)?;
+#[derive(Debug)]
+enum DownloadError {
+    Io(std::io::Error),
+    ParseUri(http::uri::InvalidUri),
+    HttpError(http::Error),
+    None,
+}
 
-    // Create request builder and send request
-    let response = client
-        .get(&uri)
-        .header("User-Agent", "Actix-web")
-        .send()
-        .await; // <- Send http request
+impl From<std::io::Error> for DownloadError {
+    fn from(e: std::io::Error) -> Self {
+        DownloadError::Io(e)
+    }
+}
 
-    println!("Response: {:?}", response);
+impl From<http::uri::InvalidUri> for DownloadError {
+    fn from(e: http::uri::InvalidUri) -> Self {
+        DownloadError::ParseUri(e)
+    }
+}
 
-    let get_host = || uri.host().unwrap().to_owned();
+impl From<http::Error> for DownloadError {
+    fn from(e: http::Error) -> Self {
+        DownloadError::HttpError(e)
+    }
+}
 
+// #[async_std::main]
+fn download(
+    uri: impl std::convert::TryInto<http::uri::Uri, Error = http::uri::InvalidUri>,
+    target_dir: impl AsRef<std::path::Path>,
+) -> Result<std::ffi::OsString, DownloadError> {
+    let output_file: std::ffi::OsString = destination(uri, target_dir)?;
+
+    return Ok(output_file);
+}
+
+fn destination(
+    uri: impl std::convert::TryInto<http::uri::Uri, Error = http::uri::InvalidUri>,
+    target_dir: impl AsRef<std::path::Path>,
+) -> Result<std::ffi::OsString, DownloadError> {
+    let uri: http::uri::Uri = match uri.try_into() {
+        Ok(uri) => Ok(uri),
+        Err(e) => Err(DownloadError::ParseUri(e)),
+    }?;
+
+    let get_host = || -> Result<String, DownloadError> {
+        match uri.host() {
+            Some(host) => Ok(String::from(host)),
+            None => Err(DownloadError::None),
+        }
+    };
     let path: String = match &uri.path_and_query() {
         Some(path_and_query) => {
             let p: String = path_and_query.path().to_owned();
             if p == "/" {
                 get_host()
             } else {
-                p
+                Ok(p)
             }
         }
         None => get_host(),
-    };
-
-    let output_pathbuf: PathBuf = PathBuf::from_str(target_dir)?.join(path);
-    let output_file: &OsStr = output_pathbuf.as_os_str();
-    let mut file: File = File::create(output_file).await?;
-    file.write_all(&response.unwrap().body().await.unwrap())
-        .await?;
-    // file.write_all(b"Hello, world!").await.unwrap();
-    return Ok(output_file.to_owned());
+    }?;
+    drop(get_host);
+    drop(uri);
+    let output_pathbuf: std::path::PathBuf = target_dir.as_ref().join(path);
+    Ok(output_pathbuf.as_os_str().to_owned())
 }
 
 #[cfg(test)]
 mod tests {
     use std::borrow::Borrow;
-    // use std::env::temp_dir;
-    use std::fs::create_dir_all;
-    use std::path::PathBuf;
     use std::str::FromStr;
 
     use crate::download;
 
-    fn temp_dir() -> PathBuf {
-        return PathBuf::from_str("/tmp").unwrap();
+    // use std::env::temp_dir
+    fn temp_dir() -> std::path::PathBuf {
+        return std::path::PathBuf::from_str("/tmp").unwrap();
     }
 
     lazy_static! {
-        pub static ref TEMP_DIR: PathBuf = temp_dir().join(module_path!());
+        pub static ref TEMP_DIR: std::path::PathBuf = temp_dir().join(module_path!());
         pub static ref TEMP_DIR_O: Option<&'static str> = TEMP_DIR.to_str();
         pub static ref TEMP_DIR_S: &'static str = TEMP_DIR_O.unwrap();
     }
@@ -73,15 +92,20 @@ mod tests {
     #[test]
     fn test_download() {
         if !TEMP_DIR.exists() {
-            create_dir_all(TEMP_DIR.borrow() as &PathBuf).unwrap();
+            std::fs::create_dir_all(TEMP_DIR.borrow() as &std::path::PathBuf).unwrap();
         }
 
-        //let output_dir =
-        download(
+        // test with invalid URL: " \"<>\\^`{|}"
+        let output_dir = download(
             "http://www.rust-lang.org",
-            TEMP_DIR_S.borrow() as &'static str,
+            std::path::Path::new(TEMP_DIR_S.borrow() as &'static str),
         )
         .unwrap();
-        //assert_eq!(output_dir, "foo")
+        assert_eq!(
+            std::path::Path::new(output_dir.as_os_str())
+                .file_name()
+                .unwrap(),
+            "www.rust-lang.org"
+        )
     }
 }

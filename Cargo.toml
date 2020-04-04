@@ -5,12 +5,11 @@ authors = ["Samuel Marks <807580+SamuelMarks@users.noreply.github.com>"]
 license = 'Apache-2.0 OR MIT'
 edition = "2018"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
-async-std = "1.5.0"
+async-std = { version = "1.5.0", features = ["attributes"] }
 actix-web = "2.0.0"
 actix-rt = "1.0.0"
-http = "0.2.0"
+http = "0.2.1"
 lazy_static = "1.4.0"
-anyhow = "1.0.26"
+anyhow = "1.0.28"
+unwrap-infallible = "0.1.5"
