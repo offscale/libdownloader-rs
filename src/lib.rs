@@ -2,6 +2,8 @@ extern crate async_std;
 #[macro_use]
 extern crate lazy_static;
 
+use async_std::prelude::*;
+
 use crate::error::DownloadError;
 use crate::helpers::destination;
 
@@ -20,9 +22,8 @@ async fn download_surf(
     let output_file: std::ffi::OsString = destination(uri, target_dir)?;
     async_std::task::block_on(async {
         let mut res = surf::get(uri.into()).await?;
-        async_std::fs::File::create(&output_file)
-            .write(res.body_bytes().await?)
-            .await?;
+        let mut file = async_std::fs::File::create(&output_file);
+        file.write_all(res.body_bytes()).await?.sync_all().await?;
         Ok(output_file)
     })
 }
