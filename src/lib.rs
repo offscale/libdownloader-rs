@@ -8,6 +8,7 @@ enum DownloadError {
     Io(std::io::Error),
     ParseUri(http::uri::InvalidUri),
     HttpError(http::Error),
+    Boxed(Box<dyn std::error::Error + Send + Sync>),
     None,
 }
 
@@ -29,18 +30,53 @@ impl From<http::Error> for DownloadError {
     }
 }
 
+impl From<Box<dyn std::error::Error + Send + Sync>> for DownloadError {
+    fn from(e: Box<dyn std::error::Error + Send + Sync>) -> Self {
+        DownloadError::Boxed(e)
+    }
+}
+
 // #[async_std::main]
-fn download(
-    uri: impl std::convert::TryInto<http::uri::Uri, Error = http::uri::InvalidUri>,
+pub fn download(
+    uri: impl std::convert::TryInto<http::uri::Uri, Error=http::uri::InvalidUri>,
     target_dir: impl AsRef<std::path::Path>,
 ) -> Result<std::ffi::OsString, DownloadError> {
     let output_file: std::ffi::OsString = destination(uri, target_dir)?;
-
     return Ok(output_file);
 }
 
+async fn download_surf(
+    uri: impl std::convert::TryInto<http::uri::Uri, Error=http::uri::InvalidUri>,
+    target_dir: impl AsRef<std::path::Path>,
+) -> Result<std::ffi::OsString, DownloadError> {
+    let output_file: std::ffi::OsString = destination(uri, target_dir)?;
+    async_std::task::block_on(async {
+        let mut res = surf::get(uri.into()).await?;
+        async_std::fs::File::create(&output_file)
+            .write(res.body_bytes().await?)
+            .await?;
+        Ok(output_file)
+    })
+}
+
+#[runtime::main]
+async fn download_runtime(
+    uri: impl std::convert::TryInto<http::uri::Uri, Error=http::uri::InvalidUri>,
+    target_dir: impl AsRef<std::path::Path>,
+) -> Result<(), failure::Error> {
+    let output_file: std::ffi::OsString = destination(uri, target_dir)?;
+    let mut stream = runtime::net::TcpStream::connect(uri.into()).await?;
+    println!("Connected to {}", &stream.peer_addr()?);
+
+    let mut buf = vec![0u8; 1024];
+    stream.read(&mut buf).await?;
+    println!("-> {}\n", String::from_utf8(buf)?);
+
+    Ok(())
+}
+
 fn destination(
-    uri: impl std::convert::TryInto<http::uri::Uri, Error = http::uri::InvalidUri>,
+    uri: impl std::convert::TryInto<http::uri::Uri, Error=http::uri::InvalidUri>,
     target_dir: impl AsRef<std::path::Path>,
 ) -> Result<std::ffi::OsString, DownloadError> {
     let uri: http::uri::Uri = match uri.try_into() {
@@ -100,7 +136,7 @@ mod tests {
             "http://www.rust-lang.org",
             std::path::Path::new(TEMP_DIR_S.borrow() as &'static str),
         )
-        .unwrap();
+            .unwrap();
         assert_eq!(
             std::path::Path::new(output_dir.as_os_str())
                 .file_name()

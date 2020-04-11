@@ -1,7 +1,7 @@
 [package]
 name = "libdownloader"
 version = "0.0.1"
-authors = ["Samuel Marks <807580+SamuelMarks@users.noreply.github.com>"]
+authors = ["Samuel Marks <@SamuelMarks>"]
 license = 'Apache-2.0 OR MIT'
 edition = "2018"
 
@@ -13,3 +13,5 @@ http = "0.2.1"
 lazy_static = "1.4.0"
 anyhow = "1.0.28"
 unwrap-infallible = "0.1.5"
+surf = "1.0.3"
+runtime = "0.3.0-alpha.8"
