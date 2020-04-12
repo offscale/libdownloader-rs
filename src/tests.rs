@@ -14,8 +14,8 @@ lazy_static! {
     pub static ref TEMP_DIR_S: &'static str = TEMP_DIR_O.unwrap();
 }
 
-#[test]
-fn test_download() {
+#[async_test]
+async fn test_download() {
     if !TEMP_DIR.exists() {
         std::fs::create_dir_all(TEMP_DIR.borrow() as &std::path::PathBuf).unwrap();
     }
@@ -25,6 +25,7 @@ fn test_download() {
         "http://www.rust-lang.org",
         std::path::Path::new(TEMP_DIR_S.borrow() as &'static str),
     )
+    .await
     .unwrap();
     assert_eq!(
         std::path::Path::new(output_dir.as_os_str())

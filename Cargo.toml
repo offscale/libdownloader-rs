@@ -8,5 +8,8 @@ edition = "2018"
 [dependencies]
 async-std = { version = "1.5.0", features = ["attributes"] }
 http = "0.2.1"
-lazy_static = "1.4.0"
 surf = "1.0.3"
+
+[dev-dependencies]
+futures-await-test = "0.3.0"
+lazy_static = "1.4.0"

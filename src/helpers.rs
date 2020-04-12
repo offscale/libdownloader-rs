@@ -1,13 +1,13 @@
 use crate::error::DownloadError;
 
-pub(crate) fn destination(
-    uri: impl std::convert::TryInto<http::uri::Uri, Error = http::uri::InvalidUri>,
+pub(crate) fn destination<E: Into<DownloadError>>(
+    uri: impl std::convert::TryInto<http::uri::Uri, Error = E>,
     target_dir: impl AsRef<std::path::Path>,
 ) -> Result<std::ffi::OsString, DownloadError> {
     let uri: http::uri::Uri = match uri.try_into() {
-        Ok(uri) => Ok(uri),
-        Err(e) => Err(DownloadError::ParseUri(e)),
-    }?;
+        Ok(uri) => uri,
+        Err(e) => return Err(e.into()),
+    };
     // .map_err(|e| Err(DownloadError::ParseUri(e)))?;
 
     let get_host = || -> Result<String, DownloadError> {

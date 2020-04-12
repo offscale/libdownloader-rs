@@ -1,8 +1,9 @@
 // Result<OsString, (SendRequestError|std::core::convert::Infallible|actix_http::error::PayloadError)
 #[derive(Debug)]
-pub(crate) enum DownloadError {
+pub enum DownloadError {
     Boxed(Box<dyn std::error::Error + Send + Sync>),
     HttpError(http::Error),
+    Infallible,
     Io(std::io::Error),
     None,
     ParseUri(http::uri::InvalidUri),
@@ -17,6 +18,12 @@ impl From<Box<dyn std::error::Error + Send + Sync>> for DownloadError {
 impl From<http::Error> for DownloadError {
     fn from(e: http::Error) -> Self {
         DownloadError::HttpError(e)
+    }
+}
+
+impl From<std::convert::Infallible> for DownloadError {
+    fn from(_: std::convert::Infallible) -> Self {
+        DownloadError::Infallible
     }
 }
 
